@@ -1,0 +1,51 @@
+{
+  "seedVersion": 1,
+  "router": {
+    "name": "Baseline Routing",
+    "description": "SMS Toolkit baseline model router",
+    "fallback_provider": "generic-openai",
+    "fallback_model": "zai-org/GLM-5.3-Flash",
+    "cooldown_seconds": 300
+  },
+  "rules": [
+    {
+      "enabled": 1,
+      "priority": 1,
+      "type": "calculated",
+      "title": "Confidential content to local model",
+      "description": "Route prompts containing confidential/private/secret wording to local Ollama model",
+      "condition_logic": "OR",
+      "conditions": [
+        { "property": "promptContent", "comparator": "contains", "value": "confidential, private, secret" }
+      ],
+      "route_provider": "anythingllm_ollama",
+      "route_model": "qwen3-vl:4b-instruct"
+    },
+    {
+      "enabled": 1,
+      "priority": 2,
+      "type": "calculated",
+      "title": "Coding prompts to deepseek",
+      "description": "Route prompts containing code-related wording to deepseek model",
+      "condition_logic": "OR",
+      "conditions": [
+        { "property": "promptContent", "comparator": "contains", "value": "code" }
+      ],
+      "route_provider": "generic-openai",
+      "route_model": "deepseek-ai/DeepSeek-V4-Flash"
+    }
+  ],
+  "envDefaults": {
+    "LLM_PROVIDER": "generic-openai",
+    "GENERIC_OPEN_AI_BASE_PATH": "https://api.deepinfra.com/v1/openai",
+    "GENERIC_OPEN_AI_MODEL_PREF": "zai-org/GLM-5.3-Flash",
+    "GENERIC_OPEN_AI_MODEL_TOKEN_LIMIT": 8192,
+    "GENERIC_OPEN_AI_MAX_TOKENS": 1024,
+    "EMBEDDING_ENGINE": "native",
+    "VECTOR_DB": "lancedb"
+  },
+  "settings": [
+    { "key": "onboarding_complete", "value": "true" },
+    { "key": "_seeded_by_sms_toolkit", "value": "true" }
+  ]
+}

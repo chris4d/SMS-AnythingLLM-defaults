@@ -1,0 +1,7 @@
+dist/
+*.exe
+apikeys.json
+*.db
+install-status.json
+pending-seed.json
+node_modules/
