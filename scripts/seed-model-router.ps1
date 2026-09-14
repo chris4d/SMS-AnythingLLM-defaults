@@ -2,6 +2,7 @@
 # Called from Inno [Run] (also rerunnable standalone). Quiet, exit 0 always.
 param(
   [string]$ApiKeysPath,        # suite-provided path (recorded only, never read here)
+  [string]$NodePath,           # suite-provided node.exe path (takes priority; staff machines have no PATH node)
   [int]$WaitSeconds = 120     # first-launch wait when db missing
 )
 
@@ -12,8 +13,21 @@ $StatusFile = Join-Path $AppDir 'install-status.json'
 $StorageDir = Join-Path $Env:APPDATA 'anythingllm-desktop\storage'
 $Node = Join-Path $AppDir 'bin\node.exe'
 
+# Suite-provided NodePath is the primary source; persist it so the first-launch
+# shim path (which re-invokes this script without params) resolves the same node.
+$NodePathFile = Join-Path $AppDir 'node-path.txt'
+if ($NodePath -and (Test-Path $NodePath)) {
+  try { Set-Content -LiteralPath $NodePathFile -Value $NodePath -Encoding ascii } catch { }
+}
+
 function Get-Node {
+  if ($NodePath -and (Test-Path $NodePath)) { return $NodePath }
   if (Test-Path $Node) { return $Node }
+  if (Test-Path $NodePathFile) {
+    $saved = (Get-Content -LiteralPath $NodePathFile -Raw -ErrorAction SilentlyContinue)
+    if ($saved) { $saved = $saved.Trim() }
+    if ($saved -and (Test-Path $saved)) { return $saved }
+  }
   $suite = Get-Command node.exe -ErrorAction SilentlyContinue
   if ($suite) { return $suite.Source }
   return $null
