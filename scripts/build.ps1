@@ -11,6 +11,7 @@ if (-not (Test-Path $Dist)) { New-Item -ItemType Directory -Path $Dist | Out-Nul
 
 # Locate Inno Setup compiler
 $ISCC = @(
+  "$env:LOCALAPPDATA\Programs\Inno Setup 6\ISCC.exe",
   "${env:ProgramFiles(x86)}\Inno Setup 6\ISCC.exe",
   "$env:ProgramFiles\Inno Setup 6\ISCC.exe"
 ) | Where-Object { Test-Path $_ } | Select-Object -First 1
@@ -24,7 +25,7 @@ $content = $content -replace '#define AppVersion "[^"]+"', "#define AppVersion `
 & $ISCC "/Qp" $Iss | Out-Null
 if ($LASTEXITCODE -ne 0) { throw "ISCC failed with exit code $LASTEXITCODE" }
 
-$Exe = Join-Path $Dist "Setup-SMS-AnythingLLM-Defaults-v$Version.exe"
+$Exe = Join-Path $Root ("installer\dist\Setup-SMS-AnythingLLM-Defaults-v$Version.exe")
 if (Test-Path $Exe) {
   $Hash = (Get-FileHash $Exe -Algorithm SHA256).Hash
   Write-Host "Built: $Exe"

@@ -3,8 +3,10 @@
 
 #define AppName "SMS AnythingLLM Defaults"
 #define AppVersion "0.1.0"
+#define AppId "{{7C1E9B34-4D5A-4F2B-9C6E-2A8D14F0B7E5}"
 
 [Setup]
+AppId={#AppId}
 AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
@@ -21,23 +23,23 @@ Uninstallable=yes
 UninstallDisplayName={#AppName}
 
 [Files]
-Source: "seed\model-router-seed.json"; DestDir: "{app}\seed"; Flags: recursesubdirs
-Source: "scripts\seed-model-router.ps1"; DestDir: "{app}\scripts"
-Source: "scripts\seed-registry.js"; DestDir: "{app}\scripts"
-Source: "shims\run-anythingllm.cmd"; DestDir: "{app}"
+Source: "..\seed\model-router-seed.json"; DestDir: "{app}\seed"; Flags: recursesubdirs
+Source: "..\scripts\seed-model-router.ps1"; DestDir: "{app}\scripts"
+Source: "..\scripts\seed-registry.js"; DestDir: "{app}\scripts"
+Source: "..\shims\run-anythingllm.cmd"; DestDir: "{app}"
 
 [Icons]
 ; Default icon runs the real AnythingLLM; when a pending seed exists the shim
 ; takes over. The shim dispatches (launches app after seeding or immediately).
-Name: "{group}\AnythingLLM"; Filename: "{app}\shims\run-anythingllm.cmd"; Description: "AnythingLLM (SMS managed)"
-Name: "{userdesktop}\AnythingLLM"; Filename: "{app}\shims\run-anythingllm.cmd"; Description: "AnythingLLM (SMS managed)"; Tasks: desktopicon
+Name: "{group}\AnythingLLM"; Filename: "{app}\shims\run-anythingllm.cmd"; Comment: "AnythingLLM (SMS managed)"
+Name: "{userdesktop}\AnythingLLM"; Filename: "{app}\shims\run-anythingllm.cmd"; Comment: "AnythingLLM (SMS managed)"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"
 
 [Run]
 ; Seed step: exit 0 always; reports into {app}\install-status.json.
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\seed-model-router.ps1"" -ApiKeysPath ""{param:ApiKeysPath|}"""; WorkingDir: "{app}"; Flags: runhidden; Description: "Seed SMS baseline model router into AnythingLLM Desktop"
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\seed-model-router.ps1"" -ApiKeysPath ""{param:ApiKeysPath|}"" -NodePath ""{param:NodePath|}"""; WorkingDir: "{app}"; Flags: runhidden; Description: "Seed SMS baseline model router into AnythingLLM Desktop"
 
 [Code]
 procedure InitializeWizard;
@@ -49,4 +51,9 @@ end;
 function GetDefaultApiKeysPath(Param: String) : String;
 begin
   Result := ExpandConstant('{param:ApiKeysPath|}');
+end;
+
+function GetDefaultNodePath(Param: String) : String;
+begin
+  Result := ExpandConstant('{param:NodePath|}');
 end;
