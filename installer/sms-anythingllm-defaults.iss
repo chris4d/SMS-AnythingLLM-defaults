@@ -2,7 +2,7 @@
 ; DefaultDirName={userpf}\SMS\AnythingLLM-Defaults  (per-user, no admin)
 
 #define AppName "SMS AnythingLLM Defaults"
-#define AppVersion "0.1.0"
+#define AppVersion "0.1.2"
 #define AppId "{{7C1E9B34-4D5A-4F2B-9C6E-2A8D14F0B7E5}"
 
 [Setup]
@@ -39,7 +39,7 @@ Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription
 
 [Run]
 ; Seed step: exit 0 always; reports into {app}\install-status.json.
-Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\seed-model-router.ps1"" -ApiKeysPath ""{param:ApiKeysPath|}"" -NodePath ""{param:NodePath|}"""; WorkingDir: "{app}"; Flags: runhidden; Description: "Seed SMS baseline model router into AnythingLLM Desktop"
+Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\seed-model-router.ps1"" -ApiKeysPath ""{param:ApiKeysPath|}"" -NodePath ""{param:NodePath|}"" -WaitSeconds 0"; WorkingDir: "{app}"; Flags: runhidden; Description: "Seed SMS baseline model router into AnythingLLM Desktop"
 
 [Code]
 procedure InitializeWizard;
