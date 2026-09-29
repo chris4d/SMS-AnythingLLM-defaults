@@ -9,7 +9,7 @@ param(
 $ErrorActionPreference = 'SilentlyContinue'
 $AppDir = Split-Path -Parent $MyInvocation.MyCommand.Path | Split-Path -Parent
 $SeedFile = Join-Path $AppDir 'seed\model-router-seed.json'
-$StatusFile = Join-Path $AppDir 'install-status.json'
+$StatusFile = Join-Path $AppDir 'sms-anythingllm-defaults-status.json'
 $StorageDir = Join-Path $Env:APPDATA 'anythingllm-desktop\storage'
 $Node = Join-Path $AppDir 'bin\node.exe'
 
@@ -42,7 +42,7 @@ function Invoke-Seed {
   & $node --experimental-sqlite (Join-Path $AppDir 'scripts\seed-registry.js') `
     --storage-dir $StorageDir --seed-file $SeedFile --app-dir $AppDir `
     --status-file $StatusFile --apikeys-path $ApiKeysPath 2>$null | Out-Null
-  # exit code intentionally ignored: seeder records via install-status.json
+  # exit code intentionally ignored: seeder records via sms-anythingllm-defaults-status.json
 }
 
 if (-not (Test-Path $SeedFile)) {

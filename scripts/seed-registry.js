@@ -41,7 +41,7 @@ function main() {
   const storageDir = opt('--storage-dir');
   const seedFile = opt('--seed-file');
   const appDir = opt('--app-dir');
-  const statusFile = opt('--status-file') || 'install-status.json';
+  const statusFile = opt('--status-file') || 'sms-anythingllm-defaults-status.json';
   const apikeysPath = opt('--apikeys-path');
   const stamp = nowStamp();
 
