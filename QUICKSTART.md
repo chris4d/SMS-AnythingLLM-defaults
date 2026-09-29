@@ -4,7 +4,7 @@
 ```powershell
 .\scripts\build.ps1 -Version 0.1.0
 ```
-Produces `dist\Setup-SMS-AnythingLLM-Defaults-v0.1.0.exe`. No install/seed runs on the
+Produces `installer\dist\Setup-SMS-AnythingLLM-Defaults-v0.1.0.exe`. No install/seed runs on the
 dev machine — see AGENTS.md.
 
 ## Test (dedicated workstation only, clean user profile)

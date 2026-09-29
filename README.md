@@ -23,7 +23,7 @@ no-prompt installers for an architecture practice.
 ## Layout
 - `seed/model-router-seed.json` — literal seed data (no secrets), editable without code changes. Rows captured from a live AnythingLLM 1.16.1 install; swappable in future releases.
 - `installer/sms-anythingllm-defaults.iss` — Inno Setup script (per-user, ARP entry, silent-safe).
-- `scripts/build.ps1` — compiles the installer into `dist/`.
+- `scripts/build.ps1` — compiles the installer into `installer\dist\`.
 - `scripts/seed-model-router.ps1` — installer [Run] step. Composes payload from seed JSON + `apikeys.json`, invokes `seed-registry.js`.
 - `scripts/seed-registry.js` — upsert logic on bundled/suite-provided portable Node v22 (`node --experimental-sqlite`, no npm deps).
 - `scripts/verify.ps1` — readonly SQLite checks for the test workstation.
