@@ -75,7 +75,9 @@ if (Test-Path $envFile) {
     if ($_ -match '^\s*([^#=]+)=(.*)$') {
       $name = $Matches[1].Trim(); $val = $Matches[2].Trim()
       $looksKey = $val.Length -ge 20 -and ($val -match '^(sk-|or-|ey-|AIza|glpat|ghp_)' -or ($val -notmatch '\s' -and $val.Length -ge 40 -and $val -match '^[A-Za-z0-9_-]+$' -and $val -notmatch ':'))
-      @($name, $(if ($looksKey) { @{ __redacted = 'key'; len = $val.Length } else { $val } }))
+      $valueOut = $val
+      if ($looksKey) { $valueOut = @{ __redacted = 'key'; len = $val.Length } }
+      @($name, $valueOut)
     } else { @('raw-line', $_) }
   }
 }
