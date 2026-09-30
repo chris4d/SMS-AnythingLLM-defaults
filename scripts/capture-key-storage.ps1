@@ -40,23 +40,33 @@ if (-not (Test-Path $OutputDir)) {
 }
 
 # --- run the node reporter ---
+# Invoked via Start-Process so node's stderr (e.g. the node:sqlite
+# ExperimentalWarning that PS 5.1 would otherwise surface as a
+# NativeCommandError under $ErrorActionPreference=Stop) never aborts us.
 $outPath = Join-Path $OutputDir "keystorage-$Label.json"
+$errPath = Join-Path $OutputDir "keystorage-$Label.stderr.txt"
 Write-Host "[1/3] Scanning (db, .env, files - all redacted)..."
-$raw = (& $Node --experimental-sqlite (Join-Path $PSScriptRoot 'capture-key-storage.js') `
-  --storage-dir $StorageDir --env-file $EnvFile --label $Label 2>&1 | Out-String)
-[System.IO.File]::WriteAllText($outPath, $raw, (New-Object System.Text.UTF8Encoding($false)))
+$jsPath = Join-Path $PSScriptRoot 'capture-key-storage.js'
+$nodeArgs = "--experimental-sqlite --no-warnings `"$jsPath`" --storage-dir `"$StorageDir`" --env-file `"$EnvFile`" --label `"$Label`""
+$nodeProc = Start-Process -FilePath $Node -ArgumentList $nodeArgs -Wait -PassThru -NoNewWindow -RedirectStandardOutput $outPath -RedirectStandardError $errPath
+if ($nodeProc.ExitCode -ne 0) {
+  Write-Host "FAIL: node reporter exited $($nodeProc.ExitCode); stderr: $errPath"
+  exit 1
+}
 
 # --- verify (parse in node; PS5.1 has no JSON deep-check) --------------------
 Write-Host "[2/3] Verifying output..."
 $verifyJs = 'const r = JSON.parse(require("fs").readFileSync(process.argv[2],"utf8")); if(!r.ok) throw new Error(r.error||"reporter failed"); if(!r.database) throw new Error("no database section");'
 $tmpVerify = Join-Path $env:TEMP 'sms-verify-capture.js'
-[System.IO.File]::WriteAllText($tmpVerify, $verifyJs)
-& $Node $tmpVerify $outPath 2>&1 | ForEach-Object { $_ }
+[System.IO.File]::WriteAllText($tmpVerify, $verifyJs, (New-Object System.Text.UTF8Encoding($false)))
+$verifyOut = Join-Path $OutputDir "keystorage-$Label.verify.txt"
+$verifyProc = Start-Process -FilePath $Node -ArgumentList "`"$tmpVerify`" `"$outPath`"" -Wait -PassThru -NoNewWindow -RedirectStandardOutput $verifyOut -RedirectStandardError "$verifyOut.stderr"
 Remove-Item $tmpVerify -ErrorAction SilentlyContinue
-if ($LASTEXITCODE -ne 0) {
-  Write-Host "FAIL: see $outPath"
+if ($verifyProc.ExitCode -ne 0) {
+  Write-Host "FAIL: verify errored ($(Get-Content $verifyOut.stderr -ErrorAction SilentlyContinue | Select-Object -First 3))"
   exit 1
 }
+Remove-Item $verifyOut, "$verifyOut.stderr" -ErrorAction SilentlyContinue
 
 Write-Host "[3/3] Captured: $outPath"
 Write-Host "Next: enter the key in the app UI, close the app, rerun with -Label after."
