@@ -24,6 +24,14 @@ dev machine — see AGENTS.md.
    provider/key entries survived — if not, keys must instead be entered in-app (backstop
    documented below).
 
+## Option B study — where does AnythingLLM actually keep provider keys?
+(Phase 1 of `feat/openrouter-key-injection`, `docs/key-injection-findings.md`.)
+On the test workstation only:
+1. `.\scripts\capture-key-storage.ps1 -Label before`
+2. Enter OpenRouter key in the app UI, close the app.
+3. `.\scripts\capture-key-storage.ps1 -Label after`
+4. Diff `logs\keystorage-*.json` and record findings (no key material is captured).
+
 ## In-app key backstop
 If keys didn't make it into `.env` (or the model router shows missing provider config),
 the user can paste the provider key once in AnythingLLM under **LLM Provider → Generic
