@@ -1,5 +1,6 @@
 dist/
 logs/
+keystorage-captures/
 *.exe
 apikeys.json
 *.db

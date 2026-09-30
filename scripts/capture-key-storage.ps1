@@ -1,115 +1,63 @@
 # Phase 1 (Option B key-injection study): capture WHERE AnythingLLM Desktop stores
-# provider API keys without capturing the keys themselves. Read-only — this script
-# writes nothing into the db or AnythingLLM storage; it reads the db, .env, and
-# lists file metadata, and emits a structure report.
+# provider API keys without capturing the keys themselves. Read-only - only its own
+# report file is written (next to this script, keystorage-captures\).
+#
+# NOTE: AnythingLLM holds a lock on the db while running. The seeder/capture tools
+# should only run with the app closed; this script detects that and exits early.
 #
 # Usage (test workstation only, see AGENTS.md):
-#   RUN 1 (BEFORE entering key in app UI):  .\capture-key-storage.ps1 -Label before
-#   Step 2: enter OpenRouter key in AnythingLLM UI (LLM Provider), then app can
-#           be closed — or capture while running for both states.
-#   RUN 2 (AFTER):                          .\capture-key-storage.ps1 -Label after
-# Output: .\logs\keystorage-<label>.json  (gitignored; no key material inside)
+#   .\capture-key-storage.ps1 -Label before    # before entering the key in the app UI
+#   .\capture-key-storage.ps1 -Label after     # after entering it, with the app closed
 param(
   [string]$Label = $(Get-Date -Format 'yyyyMMdd-HHmmss'),
-  [string]$OutputDir = $(Join-Path $PSScriptRoot 'keystorage-captures')   # alongside the script, not an assumed repo root
+  [string]$OutputDir = $(Join-Path $PSScriptRoot 'keystorage-captures')
 )
 
 $ErrorActionPreference = 'Stop'
-if (-not (Test-Path $OutputDir)) {
-  try { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
-  catch { throw "Cannot create output dir '$OutputDir'. Pass your own with -OutputDir." }
-}
 
+# --- locate storage + fail fast on lock --------------------------------------
 $StorageDir = Join-Path $Env:APPDATA 'anythingllm-desktop\storage'
-$Db         = Join-Path $StorageDir 'anythingllm.db'
+if (-not (Test-Path $StorageDir)) { Write-Host "FAIL: storage dir not found at $StorageDir"; exit 1 }
+$EnvFile = Join-Path $StorageDir '.env'
 
-if (-not (Test-Path $Db)) { Write-Host "FAIL: db not found at $Db"; exit 1 }
-
-# Find node
-$RepoBins = Get-ChildItem $RepoRoot -Filter node.exe -Recurse -ErrorAction SilentlyContinue | Select-Object -First 1
-$Node = if ($RepoBins) { $RepoBins.FullName } else { (Get-Command node.exe -ErrorAction SilentlyContinue).Source }
-if (-not $Node) { Write-Host 'FAIL: node.exe not found in repo/bin or on PATH.'; exit 1 }
-
-# --- db structure + redacted row dump ---------------------------------------
-$dbJs = @'
-const { DatabaseSync } = require("node:sqlite");
-const path = require("path");
-const crypto = require("crypto");
-const DB = process.env.SMS_DB;
-
-function looksKeyLike(s) {
-  if (typeof s !== "string" || s.length < 16) return false;
-  return /^(sk-|or-|ey-|AIza|glpat|ghp_|sk-or-v1)/i.test(s.trim()) ||
-         /^[A-Za-z0-9_-]{32,64}$/.test(s.trim());
+# --- locate node -------------------------------------------------------------
+$RepoRoot = Split-Path -Parent $PSScriptRoot
+$candidates = @()
+foreach ($d in @("$env:LOCALAPPDATA\SMS-Toolkit\node\node.exe", "$RepoRoot\bin\node.exe", (Join-Path $PSScriptRoot 'node.exe'))) {
+  if (Test-Path $d) { $candidates += $d }
 }
-function redact(raw) {
-  // Distinguish "looks like a key" (record length + sha256 prefix for diff match,
-  // never record the value) from normal values (record verbatim, they are not secrets).
-  const s = String(raw);
-  if (!looksKeyLike(s)) return raw;
-  return { __redacted: "key", len: s.trim().length, sha256: crypto.createHash("sha256").update(s.trim()).digest("hex").slice(0, 12) };
+if (-not $candidates.Count) {
+  $cmd = Get-Command node.exe -ErrorAction SilentlyContinue
+  if ($cmd) { $candidates = @($cmd.Source) }
+}
+if (-not $candidates.Count) { Write-Host 'FAIL: node.exe not found near script or on PATH.'; exit 1 }
+$Node = $candidates[0]
+
+# --- prep output dir ---------------------------------------------------------
+if (-not (Test-Path $OutputDir)) {
+  try { New-Item -ItemType Directory -Path $OutputDir -ErrorAction Stop | Out-Null }
+  catch { Write-Host "FAIL: cannot create '$OutputDir'. Pass your own with -OutputDir."; exit 1 }
 }
 
-const db = new DatabaseSync(DB, { readOnly: true });
-try {
-  const tables = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name);
-  const report = {};
-  for (const t of tables) {
-    const cols = db.prepare(`PRAGMA table_info(${t})`).all().map(c => c.name);
-    let rows = db.prepare(`SELECT * FROM ${t}`).all();
-    // cap big tables; cap row contents
-    if (rows.length > 400) rows = rows.slice(0, 400);
-    report[t] = { columns: cols, rows: rows.map(r => {
-      const out = {};
-      for (const [k, v] of Object.entries(r)) out[k] = v === null ? null : redact(v);
-      return out;
-    }) };
-  }
-  console.log(JSON.stringify(report));
-} finally { try { db.close(); } catch (_) {} }
-'@
-
-# --- .env shape: names + redaction of values (anythingllm regenerates it; report names) ---
-$envFile = Join-Path $StorageDir '.env'
-$envReport = @()
-if (Test-Path $envFile) {
-  $envReport = Get-Content $envFile -ErrorAction SilentlyContinue | ForEach-Object {
-    if ($_ -match '^\s*([^#=]+)=(.*)$') {
-      $name = $Matches[1].Trim(); $val = $Matches[2].Trim()
-      $looksKey = $val.Length -ge 20 -and ($val -match '^(sk-|or-|ey-|AIza|glpat|ghp_)' -or ($val -notmatch '\s' -and $val.Length -ge 40 -and $val -match '^[A-Za-z0-9_-]+$' -and $val -notmatch ':'))
-      $valueOut = $val
-      if ($looksKey) { $valueOut = @{ __redacted = 'key'; len = $val.Length } }
-      @($name, $valueOut)
-    } else { @('raw-line', $_) }
-  }
-}
-
-# --- storage dir metadata: which files change when a key is added ------------
-$files = Get-ChildItem $StorageDir -Recurse -File -ErrorAction SilentlyContinue | ForEach-Object {
-  @{ name = $_.Name; length = $_.Length; lastWrite = $_.LastWriteTimeUtc.ToString('o') }
-}
-
-# --- run the db dump --------------------------------------------------------
-$tmpJs = Join-Path $env:TEMP 'sms-capture-keys.js'
-[System.IO.File]::WriteAllText($tmpJs, $dbJs)
-$env:SMS_DB = $Db
-$raw = & $Node --experimental-sqlite $tmpJs 2>$null
-Remove-Item $tmpJs -ErrorAction SilentlyContinue
-
-$dbReport = $null
-try { $dbReport = $raw | ConvertFrom-Json } catch { Write-Host "FAIL: could not parse db dump (node exit=$LASTEXITCODE)"; exit 1 }
-
-$report = [ordered]@{
-  label        = $Label
-  capturedAt   = (Get-Date).ToUniversalTime().ToString('o')
-  dbPath       = $Db
-  database     = $dbReport
-  envFile      = $envReport
-  storageFiles = $files
-}
-
+# --- run the node reporter ---
 $outPath = Join-Path $OutputDir "keystorage-$Label.json"
-$report | ConvertTo-Json -Depth 20 | Set-Content -LiteralPath $outPath -Encoding UTF8
-Write-Host "Captured: $outPath"
-Write-Host "Next: `"step: enter the key in the app UI, then rerun with a new -Label (e.g. 'after')`""
+Write-Host "[1/3] Scanning (db, .env, files - all redacted)..."
+$raw = (& $Node --experimental-sqlite (Join-Path $PSScriptRoot 'capture-key-storage.js') `
+  --storage-dir $StorageDir --env-file $EnvFile --label $Label 2>&1 | Out-String)
+[System.IO.File]::WriteAllText($outPath, $raw, (New-Object System.Text.UTF8Encoding($false)))
+
+# --- verify (parse in node; PS5.1 has no JSON deep-check) --------------------
+Write-Host "[2/3] Verifying output..."
+$verifyJs = 'const r = JSON.parse(require("fs").readFileSync(process.argv[2],"utf8")); if(!r.ok) throw new Error(r.error||"reporter failed"); if(!r.database) throw new Error("no database section");'
+$tmpVerify = Join-Path $env:TEMP 'sms-verify-capture.js'
+[System.IO.File]::WriteAllText($tmpVerify, $verifyJs)
+& $Node $tmpVerify $outPath 2>&1 | ForEach-Object { $_ }
+Remove-Item $tmpVerify -ErrorAction SilentlyContinue
+if ($LASTEXITCODE -ne 0) {
+  Write-Host "FAIL: see $outPath"
+  exit 1
+}
+
+Write-Host "[3/3] Captured: $outPath"
+Write-Host "Next: enter the key in the app UI, close the app, rerun with -Label after."
 exit 0

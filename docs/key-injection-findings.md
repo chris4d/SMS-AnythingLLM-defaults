@@ -21,20 +21,21 @@ responsible for keys is the open question.
    `{len, sha256-prefix}` for matching).
 
 ## Findings
-_(fill in after the workstation run)_
+_(partial — from a dev machine run on 2026-09-30 against a live install (AnythingLLM Desktop 1.16.1) that already had an OpenRouter key entered; a fresh pre/post capture still required on the test workstation)_
 
-### Where the key materializes
-- [ ] db table: `?` (which table/row/key)
-- [ ] env file: `?` (which var)
-- [ ] neither → key lives outside storage (keychain/os credential store)
+### What we can already see (dev machine, `capture-key-storage` snapshot)
+- `storage\.env` currently holds `OPENROUTER_API_KEY=sk-or-v1-...` and `OPENROUTER_MODEL_PREF=z-ai/glm-5.3-flash`, alongside legacy `GENERIC_OPEN_AI_API_KEY` (deepinfra), `MISTRAL_API_KEY`, `SIG_KEY`, `SIG_SALT` in the *same file*.
+- `system_settings` db rows contain **no provider API keys** (the lone flagged value was `telemetry_id` — a UUID false-positive from the shape heuristic; all provider keys absent from that table).
+- db tables: none of the 41 tables contain a recognizable provider-key value beloning to an OpenRouter/DeepInfra/Mistral key (the redaction hits in `_prisma_migrations`/`workspace_*`/`meeting_*` tables are id/record-shape false-positives, not key material).
+- So: at boot, the app appears to **serialize `.env` from somewhere other than the db**, yet the OPENROUTER_API_KEY is present in `.env` today and the app has been restarted multiple times — suggesting either (a) `.env` actually *is* sticky across boots (overwriting only select vars via the auto-dump), or (b) the app lifts provider keys back into `.env` from some other persistence (e.g., its own electron app store / secure storage).
 
-### Does it survive app restart?
-- [ ] yes / [ ] no — evidence: `?`
+### Still unresolved (test-station capture required)
+- Does `.env` survive a fresh AnythingLLM restart untouched? (need `before`/`after` snapshots on a workstation whose key was just entered in-app)
+- If `.env` is regenerated, what intermediate/binary/auth-store file changed? (storage-file mtime diff on the two captures)
+- if neither: desktop may store provider keys in a node.js os-level key ring / Chrome profile (`comkey\ipc-priv.pem` seen in the DB listing is suspicious but is MolChat Electron IPC key material, so likely irrelevant)
 
 ### Notable snapshots
-- `before`: files present `?`
-- `after`: new files `?`, mtimes changed `?`
+- `before` (needed from test station) - `after` (same)
 
 ## Disposition
-<!-- After findings: which channel the seeder should write to for v0.2.0,
-     or "backstop-only" if no injection channel is reliable. -->
+_(fill in after the workstation run)_	local
