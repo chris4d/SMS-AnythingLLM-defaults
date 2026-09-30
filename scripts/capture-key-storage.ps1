@@ -10,13 +10,15 @@
 #   RUN 2 (AFTER):                          .\capture-key-storage.ps1 -Label after
 # Output: .\logs\keystorage-<label>.json  (gitignored; no key material inside)
 param(
-  [string]$Label = $(Get-Date -Format 'yyyyMMdd-HHmmss')
+  [string]$Label = $(Get-Date -Format 'yyyyMMdd-HHmmss'),
+  [string]$OutputDir = $(Join-Path $PSScriptRoot 'keystorage-captures')   # alongside the script, not an assumed repo root
 )
 
 $ErrorActionPreference = 'Stop'
-$RepoRoot = Split-Path -Parent $PSScriptRoot
-$OutputDir = Join-Path $RepoRoot 'logs'
-if (-not (Test-Path $OutputDir)) { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
+if (-not (Test-Path $OutputDir)) {
+  try { New-Item -ItemType Directory -Path $OutputDir | Out-Null }
+  catch { throw "Cannot create output dir '$OutputDir'. Pass your own with -OutputDir." }
+}
 
 $StorageDir = Join-Path $Env:APPDATA 'anythingllm-desktop\storage'
 $Db         = Join-Path $StorageDir 'anythingllm.db'
