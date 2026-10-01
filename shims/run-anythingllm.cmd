@@ -16,8 +16,10 @@ if exist "%LAUNCHER%" (
 )
 
 if exist "%APPDIR%pending-seed.json" (
+  rem The ps1 polls for the db, closes the app, seeds db + .env (key injection),
+  rem relaunches the app, and consumes the pending marker itself on success.
+  rem If seeding fails the marker survives for the next launch to retry.
   powershell -NoProfile -ExecutionPolicy Bypass -File "%APPDIR%scripts\seed-model-router.ps1" -WaitSeconds 120 >nul 2>&1
-  del "%APPDIR%pending-seed.json" >nul 2>&1
 )
 
 endlocal

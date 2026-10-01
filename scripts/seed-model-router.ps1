@@ -16,8 +16,18 @@ $Node = Join-Path $AppDir 'bin\node.exe'
 # Suite-provided NodePath is the primary source; persist it so the first-launch
 # shim path (which re-invokes this script without params) resolves the same node.
 $NodePathFile = Join-Path $AppDir 'node-path.txt'
+$ApiKeysPathFile = Join-Path $AppDir 'apikeys-path.txt'
 if ($NodePath -and (Test-Path $NodePath)) {
   try { Set-Content -LiteralPath $NodePathFile -Value $NodePath -Encoding ascii } catch { }
+}
+# Persist the suite-provided apikeys.json path so the first-launch shim path
+# (which re-invokes this script without params) still injects the key.
+if ($ApiKeysPath) {
+  try { Set-Content -LiteralPath $ApiKeysPathFile -Value $ApiKeysPath -Encoding ascii } catch { }
+}
+if (-not $ApiKeysPath -and (Test-Path $ApiKeysPathFile)) {
+  $saved = Get-Content -LiteralPath $ApiKeysPathFile -Raw -ErrorAction SilentlyContinue
+  if ($saved) { $ApiKeysPath = $saved.Trim() }
 }
 
 function Get-Node {
@@ -59,15 +69,29 @@ if (Test-Path (Join-Path $StorageDir 'anythingllm.db')) { exit 0 }
 $Pending = Join-Path $AppDir 'pending-seed.json'
 if (-not (Test-Path $Pending)) { exit 0 }
 
-# If launched interactively (not from installer), wait briefly and reseed once db appears.
-if ($WaitSeconds -gt 0 -and -not ($MyInvocation.Line -match 'installer')) {
+# Shim path (WaitSeconds > 0): the shim launched the app; poll for the db, then
+# close the app (Phase 1 evidence: provider keys live in storage\.env and the app
+# must not rewrite it after our merge), seed, and relaunch.
+if ($WaitSeconds -gt 0) {
   $deadline = (Get-Date).AddSeconds($WaitSeconds)
   while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 2
-    if (Test-Path (Join-Path $StorageDir 'anythingllm.db')) {
-      Invoke-Seed
-      break
+    if (Test-Path (Join-Path $StorageDir 'anythingllm.db')) { break }
+  }
+  if (Test-Path (Join-Path $StorageDir 'anythingllm.db')) {
+    # Close the app so it cannot re-dump .env over our injected vars.
+    taskkill /IM AnythingLLM.exe /F 2>$null | Out-Null
+    $killDeadline = (Get-Date).AddSeconds(20)
+    while ((Get-Date) -lt $killDeadline) {
+      Start-Sleep -Seconds 1
+      $stillRunning = Get-Process -Name 'AnythingLLM' -ErrorAction SilentlyContinue
+      if (-not $stillRunning) { break }
     }
+    Invoke-Seed
+    # Relaunch the app for the user.
+    $launcher = Join-Path $Env:LOCALAPPDATA 'Programs\AnythingLLM\AnythingLLM.exe'
+    if (Test-Path $launcher) { Start-Process -FilePath $launcher | Out-Null }
+    Remove-Item -LiteralPath $Pending -Force -ErrorAction SilentlyContinue
   }
 }
 exit 0

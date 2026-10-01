@@ -11,7 +11,10 @@ Hard constraints for any agent or contributor working in this repo:
 - **No elevation**: per-user install only (`{userpf}` / `{localappdata}` targets). Never
   write HKLM/HKCU-write-requiring code, never require admin.
 - **Secrets never committed**: API keys flow at runtime via the suite-provided
-  `apikeys.json` path. Never log or print key values. `apikeys.json` is gitignored.
+  `apikeys.json` path. The seeder reads that file and injects the key into the
+  AnythingLLM `storage\.env` (verified persistence channel, see
+  `docs/key-injection-findings.md`), but never logs or prints key values — status
+  messages carry presence/length only. `apikeys.json` is gitignored.
 - **Never fail the install**: seed problems (missing db, table drift in future
   AnythingLLM versions) are reported via `install-status.json` and the step exits 0.
 - **No external deps**: seeder runs on bundled/suite-provided portable Node v22 with

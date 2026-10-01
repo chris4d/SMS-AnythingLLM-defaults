@@ -25,15 +25,14 @@ dev machine — see AGENTS.md.
    documented below).
 
 ## Option B study — where does AnythingLLM actually keep provider keys?
-(Phase 1 of `feat/openrouter-key-injection`, `docs/key-injection-findings.md`.)
-On the test workstation only:
-1. `.\scripts\capture-key-storage.ps1 -Label before`
-2. Enter OpenRouter key in the app UI, close the app.
-3. `.\scripts\capture-key-storage.ps1 -Label after`
-4. Diff `logs\keystorage-*.json` and record findings (no key material is captured).
+RESOLVED (Phase 1, see `docs/key-injection-findings.md`): provider keys persist in
+`storage\.env` and survive boots; the db holds no key material. The seeder now injects
+the suite-provided OpenRouter key directly into `storage\.env` (merge-only). The
+capture script (`scripts\capture-key-storage.ps1` + `.js`) remains available for
+re-verification on future AnythingLLM upgrades.
 
 ## In-app key backstop
-If keys didn't make it into `.env` (or the model router shows missing provider config),
-the user can paste the provider key once in AnythingLLM under **LLM Provider → Generic
-OpenAI** keys page. Nothing else in the seed depends on this; document any change to
-key flow here when it's resolved during MVP testing.
+No longer needed in the normal path (key is injected at seed time). If the status
+file shows `key missing/unreadable` — e.g. the suite never passed `apikeys.json` —
+the user can paste the key once in AnythingLLM under the LLM Provider page. Kept as
+a fallback only.

@@ -15,6 +15,21 @@ function readJson(p) {
   return JSON.parse(fs.readFileSync(p, 'utf8'));
 }
 
+// Merge key=value pairs into an .env file, preserving unrelated lines.
+// Never logs values. Returns count of vars written/replaced.
+function mergeEnvFile(envPath, vars) {
+  let text = '';
+  try { text = fs.readFileSync(envPath, 'utf8'); } catch (_) { text = ''; }
+  let written = 0;
+  for (const [k, v] of Object.entries(vars)) {
+    const re = new RegExp(`^${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=.*$`, 'm');
+    if (re.test(text)) { text = text.replace(re, `${k}=${v}`); written++; }
+    else { text += `\n${k}=${v}`; written++; }
+  }
+  fs.writeFileSync(envPath, text.replace(/^\n+/, '') + (text.trim() ? '\n' : ''));
+  return written;
+}
+
 function nowStamp() {
   return new Date().toISOString().replace('T', ' ').replace('Z', '');
 }
@@ -61,7 +76,7 @@ function main() {
   if (fs.existsSync(dbPath)) {
     let result;
     try {
-      result = doSeed(storageDir, seed, stamp);
+      result = doSeed(storageDir, seed, stamp, apikeysPath);
     } catch (e) {
       result = { ok: true, action: 'report-error', message: `${stamp}: seed error (non-blocking): ${e.message || String(e)}` };
     }
@@ -87,7 +102,7 @@ function writePending(seed, storageDir, apikeysPath, appDir, stamp) {
   }, null, 2));
 }
 
-function doSeed(storageDir, seed, stamp) {
+function doSeed(storageDir, seed, stamp, apikeysPath) {
   const { DatabaseSync } = require('node:sqlite');
   const dbPath = path.join(storageDir, 'anythingllm.db');
   const db = new DatabaseSync(dbPath, { open: true });
@@ -128,18 +143,34 @@ function doSeed(storageDir, seed, stamp) {
 
     db.exec('BEGIN');
     try {
-      // Non-secret .env defaults (never key material). Written as a complement file;
-      // AnythingLLM regenerates its own .env each boot, so we don't race it.
-      const envDefaults = seed.envDefaults || {};
-      const envPath = path.join(storageDir, '.env.sms-defaults');
-      let envText = '';
-      try { envText = fs.readFileSync(envPath, 'utf8'); } catch (_) { envText = ''; }
-      for (const [k, v] of Object.entries(envDefaults)) {
-        const re = new RegExp(`^${k.replace(/[.*+?^${}()|[\]\\]/g, '\\$&')}=.*$`, 'm');
-        if (re.test(envText)) envText = envText.replace(re, `${k}=${v}`);
-        else envText += `\n${k}=${v}`;
+      // Phase-1 finding (docs/key-injection-findings.md): provider keys persist in
+      // storage\.env itself and survive boots; the db holds no key material.
+      // So injection targets storage\.env directly (merge, never clobber unrelated
+      // lines). The caller guarantees the app is closed while we do this.
+      const envPath = path.join(storageDir, '.env');
+      const envVars = { ...(seed.envDefaults || {}) };
+
+      // Complement file from the earlier prototype: remove it (never read by the app).
+      try { fs.unlinkSync(path.join(storageDir, '.env.sms-defaults')); } catch (_) {}
+
+      let keyStatus = 'missing-apikeys-file';
+      if (apikeysPath && fs.existsSync(apikeysPath)) {
+        try {
+          const inj = seed.keyInjection || { sourceFileKey: 'openrouter', envVar: 'OPENROUTER_API_KEY' };
+          const keys = readJson(apikeysPath);
+          const key = keys[inj.sourceFileKey];
+          if (typeof key === 'string' && key.trim().length > 8) {
+            envVars[inj.envVar] = key.trim();
+            keyStatus = `injected (len ${key.trim().length})`;
+          } else {
+            keyStatus = 'key-missing-in-apikeys-file';
+          }
+        } catch (e) {
+          keyStatus = `apikeys-unreadable (${e.message || e})`;
+        }
       }
-      fs.writeFileSync(envPath, envText.trim() + '\n');
+
+      const envWritten = mergeEnvFile(envPath, envVars);
 
       const router = seed.router;
       let routerId;
@@ -180,7 +211,7 @@ function doSeed(storageDir, seed, stamp) {
       for (const s of seed.settings || []) setSetting.run(s.key, s.value);
 
       db.exec('COMMIT');
-      return { ok: true, action: 'seeded', message: `${stamp}: router '${router.name}' and ${seed.rules.length} rules seeded; onboarding skipped; seed marker set.` };
+      return { ok: true, action: 'seeded', message: `${stamp}: router '${router.name}' and ${seed.rules.length} rules seeded; ${envWritten} env vars merged into .env; key ${keyStatus}; onboarding skipped; seed marker set.` };
     } catch (inner) {
       try { db.exec('ROLLBACK'); } catch (_) {}
       throw inner;

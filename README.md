@@ -9,16 +9,20 @@ no-prompt installers for an architecture practice.
 1. Staged by its Inno installer (`Setup-SMS-AnythingLLM-Defaults-vX.Y.Z.exe`, `main` branch).
 2. Locates `%APPDATA%\anythingllm-desktop\storage\anythingllm.db`.
 3. If the db exists: applies `seed/model-router-seed.json` (router + 2 literal rules,
-   non-secret `.env` defaults, skips onboarding) and writes idempotency marker
-   `system_settings._seeded_by_sms_toolkit`.
-4. If the db doesn't exist yet: writes `{app}\pending-seed.json` and repoints the
-   start-menu icon to `shims\run-anythingllm.cmd`, which seeds on first launch
-   (waits up to 120s for the db).
+   non-secret env defaults, skips onboarding) and writes idempotency marker
+   `system_settings._seeded_by_sms_toolkit`. Also merges the suite-provided OpenRouter
+   API key from `apikeys.json` into `storage\.env` (verified persistence channel —
+   see `docs/key-injection-findings.md`), never logging key values.
+4. If the db doesn't exist yet: writes `{app}\pending-seed.json`; the start-menu
+   `shims\run-anythingllm.cmd` launches the app, waits (up to 120s) for the db to
+   appear, closes the app (so it cannot rewrite `.env` over the injected key), seeds
+   db + `.env`, relaunches, and consumes the marker. Failure keeps the pending marker
+   for the next launch to retry.
 5. Never fails the install or blocks the app: table drift / missing db / missing tables
-   are recorded in `install-status.json`; the step still exits 0 and stays quiet under
-   `/VERYSILENT`.
-6. API keys flow at runtime via a suite-provided `apikeys.json` path; key values are
-   never logged or committed.
+   are recorded in `sms-anythingllm-defaults-status.json`; the step still exits 0 and
+   stays quiet under `/VERYSILENT`.
+6. API keys flow at runtime via a suite-provided `apikeys.json` path; the seeder reads
+   and injects them, never logs them (status messages carry presence/length only).
 
 ## Layout
 - `seed/model-router-seed.json` — literal seed data (no secrets), editable without code changes. Rows captured from a live AnythingLLM 1.16.1 install; swappable in future releases.
@@ -38,4 +42,6 @@ flat, self-contained, Node-only, and rerunable.
 
 ## Versioning / releases
 - Conventional releases: `vX.Y.Z`, artifact `Setup-SMS-AnythingLLM-Defaults-vX.Y.Z.exe` published to GitHub Releases with SHA-256 digest in the release notes.
-- First cut: `v0.1.0`.
+- Current release: `v0.2.0` (Option B: OpenRouter key injection; model ids in
+  OpenRouter naming — `z-ai/glm-5.3-flash` fallback, `deepseek/deepseek-v4-flash` code
+  rule). Phase 1 evidence in `docs/key-injection-findings.md`.

@@ -27,6 +27,18 @@ console.log(JSON.stringify({
   rules: rules.map(r => ({ priority: r.priority, enabled: r.enabled, route: String(r.route_provider) + " " + r.route_model, conditions: r.conditions })),
   marker: marker ? marker.value : null,
   onboarding: onboarding ? onboarding.value : null,
+  env: (() => {
+    const fs = require("fs"), path = require("path");
+    const envPath = path.join(path.dirname(process.argv[2]), ".env");
+    let text = ""; try { text = fs.readFileSync(envPath, "utf8"); } catch (_) { return { exists: false }; }
+    const has = (k) => new RegExp("^" + k + "=(.+)$", "m").test(text) || new RegExp("^" + k + "=.*$", "m").test(text);
+    const present = {};
+    for (const k of ["LLM_PROVIDER", "GENERIC_OPEN_AI_BASE_PATH", "OPENROUTER_API_KEY", "OPENROUTER_MODEL_PREF"]) {
+      const m = new RegExp("^" + k + "=(.*)$", "m").exec(text);
+      present[k] = m ? (k === "OPENROUTER_API_KEY" ? "present(len " + m[1].length + ")" : m[1]) : "missing";
+    }
+    return { exists: true, vars: present };
+  })(),
 }));
 '@
 $tmp = Join-Path $env:TEMP 'sms-verify-seed.js'
@@ -40,10 +52,20 @@ try { $result = $out | ConvertFrom-Json } catch {}
 $errors = @()
 if ($result) {
   if (-not $result.router.found) { $errors += 'router-row-missing' }
-  elseif ($result.router.fallback -ne 'generic-openai/zai-org/GLM-5.3-Flash') { $errors += 'router-fallback-mismatch' }
+  elseif ($result.router.fallback -ne 'generic-openai/z-ai/glm-5.3-flash') { $errors += 'router-fallback-mismatch' }
   elseif ($result.ruleCount -ne 2) { $errors += "rule-count=$($result.ruleCount)" }
   if (-not $result.marker) { $errors += 'seed-marker-missing' }
   elseif ("$($result.onboarding)" -ne 'true') { $errors += 'onboarding-not-complete' }
+  if ($result.env) {
+    if (-not $result.env.exists) { $errors += 'env-file-missing' }
+    else {
+      $v = $result.env.vars
+      if ($v.LLM_PROVIDER -ne 'openrouter') { $errors += "llm-provider=$($v.LLM_PROVIDER)" }
+      if ($v.'GENERIC_OPEN_AI_BASE_PATH' -ne 'https://openrouter.ai/api/v1') { $errors += "base-path=$($v.'GENERIC_OPEN_AI_BASE_PATH')" }
+      if ($v.'OPENROUTER_API_KEY' -eq 'missing') { $errors += 'openrouter-key-missing' }
+      elseif ($v.'OPENROUTER_MODEL_PREF' -eq 'missing') { $errors += 'openrouter-model-pref-missing' }
+    }
+  }
   if (-not $Quiet) {
     $result | ConvertTo-Json -Depth 5
     Write-Host "conditions check:"

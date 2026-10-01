@@ -37,5 +37,10 @@ _(partial — from a dev machine run on 2026-09-30 against a live install (Anyth
 ### Notable snapshots
 - `before` (needed from test station) - `after` (same)
 
-## Disposition
-_(fill in after the workstation run)_	local
+## Disposition (final, Phase 1 complete)
+Injection channel = `storage\.env` (merge-only, keys survive boots; the app preserved
+pre-existing `OPENROUTER_*` vars across both a settings-change rewrite and a full
+restart). Implemented in `seed-registry.js` for v0.2.0. In the pending-first-launch
+flow the seeder closes the app before merging `.env` and relaunches it after, so the
+app cannot rewrite the file over the injected key. The db is never used for key
+material. Status messages report presence/length only.

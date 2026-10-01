@@ -4,7 +4,7 @@
     "name": "Baseline Routing",
     "description": "SMS Toolkit baseline model router",
     "fallback_provider": "generic-openai",
-    "fallback_model": "zai-org/GLM-5.3-Flash",
+    "fallback_model": "z-ai/glm-5.3-flash",
     "cooldown_seconds": 300
   },
   "rules": [
@@ -32,17 +32,25 @@
         { "property": "promptContent", "comparator": "contains", "value": "code" }
       ],
       "route_provider": "generic-openai",
-      "route_model": "deepseek-ai/DeepSeek-V4-Flash"
+      "route_model": "deepseek/deepseek-v4-flash"
     }
   ],
   "envDefaults": {
-    "LLM_PROVIDER": "generic-openai",
-    "GENERIC_OPEN_AI_BASE_PATH": "https://api.deepinfra.com/v1/openai",
-    "GENERIC_OPEN_AI_MODEL_PREF": "zai-org/GLM-5.3-Flash",
+    "LLM_PROVIDER": "openrouter",
+    "GENERIC_OPEN_AI_BASE_PATH": "https://openrouter.ai/api/v1",
+    "GENERIC_OPEN_AI_MODEL_PREF": "z-ai/glm-5.3-flash",
     "GENERIC_OPEN_AI_MODEL_TOKEN_LIMIT": 8192,
     "GENERIC_OPEN_AI_MAX_TOKENS": 1024,
+    "OPENROUTER_MODEL_PREF": "z-ai/glm-5.3-flash",
+    "OPENROUTER_TIMEOUT_MS": "3000",
+    "OPENROUTER_SERVICE_TIER": "default",
     "EMBEDDING_ENGINE": "native",
     "VECTOR_DB": "lancedb"
+  },
+  "keyInjection": {
+    "sourceFileKey": "openrouter",
+    "envVar": "OPENROUTER_API_KEY",
+    "requiredEnvDefaults": ["LLM_PROVIDER", "GENERIC_OPEN_AI_BASE_PATH"]
   },
   "settings": [
     { "key": "onboarding_complete", "value": "true" },
