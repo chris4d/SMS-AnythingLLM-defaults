@@ -2,7 +2,7 @@
 ; DefaultDirName={userpf}\SMS\AnythingLLM-Defaults  (per-user, no admin)
 
 #define AppName "SMS AnythingLLM Defaults"
-#define AppVersion "0.2.0"
+#define AppVersion "0.2.1"
 #define AppId "{{7C1E9B34-4D5A-4F2B-9C6E-2A8D14F0B7E5}"
 
 [Setup]
@@ -31,14 +31,14 @@ Source: "..\shims\run-anythingllm.cmd"; DestDir: "{app}"
 [Icons]
 ; Default icon runs the real AnythingLLM; when a pending seed exists the shim
 ; takes over. The shim dispatches (launches app after seeding or immediately).
-Name: "{group}\AnythingLLM"; Filename: "{app}\shims\run-anythingllm.cmd"; Comment: "AnythingLLM (SMS managed)"
-Name: "{userdesktop}\AnythingLLM"; Filename: "{app}\shims\run-anythingllm.cmd"; Comment: "AnythingLLM (SMS managed)"; Tasks: desktopicon
+Name: "{group}\AnythingLLM"; Filename: "{app}\run-anythingllm.cmd"; Comment: "AnythingLLM (SMS managed)"
+Name: "{userdesktop}\AnythingLLM"; Filename: "{app}\run-anythingllm.cmd"; Comment: "AnythingLLM (SMS managed)"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"
 
 [Run]
-; Seed step: exit 0 always; reports into {app}\install-status.json.
+; Seed step: exit 0 always; reports into {app}\sms-anythingllm-defaults-status.json.
 Filename: "powershell.exe"; Parameters: "-NoProfile -ExecutionPolicy Bypass -File ""{app}\scripts\seed-model-router.ps1"" -ApiKeysPath ""{param:ApiKeysPath|}"" -NodePath ""{param:NodePath|}"" -WaitSeconds 0"; WorkingDir: "{app}"; Flags: runhidden; Description: "Seed SMS baseline model router into AnythingLLM Desktop"
 
 [Code]
