@@ -26,6 +26,7 @@ UninstallDisplayName={#AppName}
 Source: "..\seed\model-router-seed.json"; DestDir: "{app}\seed"; Flags: recursesubdirs
 Source: "..\scripts\seed-model-router.ps1"; DestDir: "{app}\scripts"
 Source: "..\scripts\seed-registry.js"; DestDir: "{app}\scripts"
+Source: "..\scripts\verify.ps1"; DestDir: "{app}\scripts"
 Source: "..\shims\run-anythingllm.cmd"; DestDir: "{app}"
 
 [Icons]

@@ -19,14 +19,18 @@ const { DatabaseSync } = require("node:sqlite");
 const db = new DatabaseSync(process.argv[2], { readOnly: true });
 const router = db.prepare("SELECT * FROM model_routers WHERE name=?").get("Baseline Routing");
 const rules = router ? db.prepare("SELECT * FROM model_router_rules WHERE router_id=?").all(String(router.id || router.ID)) : [];
-const marker = db.prepare("SELECT value FROM system_settings WHERE key='_seeded_by_sms_toolkit'").get();
-const onboarding = db.prepare("SELECT value FROM system_settings WHERE key='onboarding_complete'").get();
+const sCols = db.prepare(`PRAGMA table_info("system_settings")`).all().map(c => c.name);
+const keyCol = sCols.includes("key") ? "key" : "label";
+const getSetting = (k) => {
+  const row = db.prepare(`SELECT value FROM system_settings WHERE "${keyCol}"=?`).get(k);
+  return row ? row.value : null;
+};
 console.log(JSON.stringify({
   router: { found: !!router, fallback: router ? String(router.fallback_provider) + "/" + String(router.fallback_model) : null, cooldown: router ? router.cooldown_seconds : null },
   ruleCount: rules.length,
   rules: rules.map(r => ({ priority: r.priority, enabled: r.enabled, route: String(r.route_provider) + " " + r.route_model, conditions: r.conditions })),
-  marker: marker ? marker.value : null,
-  onboarding: onboarding ? onboarding.value : null,
+  marker: getSetting("_seeded_by_sms_toolkit"),
+  onboarding: getSetting("onboarding_complete"),
   env: (() => {
     const fs = require("fs"), path = require("path");
     const envPath = path.join(path.dirname(process.argv[2]), ".env");
@@ -35,17 +39,22 @@ console.log(JSON.stringify({
     const present = {};
     for (const k of ["LLM_PROVIDER", "GENERIC_OPEN_AI_BASE_PATH", "OPENROUTER_API_KEY", "OPENROUTER_MODEL_PREF"]) {
       const m = new RegExp("^" + k + "=(.*)$", "m").exec(text);
-      present[k] = m ? (k === "OPENROUTER_API_KEY" ? "present(len " + m[1].length + ")" : m[1]) : "missing";
+      const unq = (s) => s ? s.replace(/^['"]|['"]$/g, "") : s;
+      present[k] = m ? (k === "OPENROUTER_API_KEY" ? "present(len " + m[1].length + ")" : unq(m[1])) : "missing";
     }
     return { exists: true, vars: present };
   })(),
 }));
 '@
 $tmp = Join-Path $env:TEMP 'sms-verify-seed.js'
-[System.IO.File]::WriteAllText($tmp, $js)
+[System.IO.File]::WriteAllText($tmp, $js, (New-Object System.Text.UTF8Encoding($false)))
 
-$nodeArgs = @('--experimental-sqlite', $tmp, $Db)
-$out = & $Node $nodeArgs 2>$null
+# Start-Process so node stderr (e.g. ExperimentalWarning) cannot abort the PS
+# pipeline under $ErrorActionPreference=Stop (PS 5.1 NativeCommandError class).
+$outFile = Join-Path $env:TEMP 'sms-verify-seed.out.json'
+$errFile = Join-Path $env:TEMP 'sms-verify-seed.err.txt'
+$proc = Start-Process -FilePath $Node -ArgumentList ('--experimental-sqlite', "`"$tmp`"", "`"$Db`"") -Wait -PassThru -NoNewWindow -RedirectStandardOutput $outFile -RedirectStandardError $errFile
+$out = Get-Content -LiteralPath $outFile -Raw -ErrorAction SilentlyContinue
 $result = $null
 try { $result = $out | ConvertFrom-Json } catch {}
 
@@ -79,6 +88,7 @@ Remove-Item $tmp -ErrorAction SilentlyContinue
 # Extra: no personal/Mistral routers leaked in from capture.
 if (-not $Quiet) { Write-Host "marker=$($result.marker) onboarding=$($result.onboarding) rules=$($result.ruleCount)" }
 
-if ($errors.Count -gt 0) { Write-Host "FAIL: $($errors -join ', ')"; exit 1 }
+if ($errors.Count -gt 0) { Write-Host "FAIL: $($errors -join ', ')"; if (Test-Path $errFile) { Write-Host "stderr:"; Get-Content $errFile | Select-Object -First 5 }; Remove-Item $outFile, $errFile -ErrorAction SilentlyContinue; exit 1 }
 Write-Host 'OK: seed verified.'
+Remove-Item $outFile, $errFile -ErrorAction SilentlyContinue
 exit 0

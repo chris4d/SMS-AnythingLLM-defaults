@@ -118,7 +118,21 @@ function doSeed(storageDir, seed, stamp, apikeysPath) {
       }
     }
 
-    const settings = new Map(db.prepare(`SELECT key, value FROM system_settings`).all().map((r) => [r.key, r.value]));
+    // Settings table schema varies across AnythingLLM versions: the key column is
+    // 'key' (older) or 'label' (1.16.x), and timestamps may be camelCase epoch-ms.
+    // Introspect rather than assume (per AGENTS.md: never break on schema drift).
+    const settingsCols = db.prepare(`PRAGMA table_info("system_settings")`).all().map((c) => c.name);
+    const keyCol = settingsCols.includes('key') ? 'key' : (settingsCols.includes('label') ? 'label' : null);
+    if (!keyCol) {
+      return { ok: false, action: 'report-error', message: `${stamp}: system_settings has neither 'key' nor 'label' column (schema drift) - recorded, not blocking.` };
+    }
+    const valCol = settingsCols.includes('value') ? 'value' : null;
+    if (!valCol) {
+      return { ok: false, action: 'report-error', message: `${stamp}: system_settings has no 'value' column (schema drift) - recorded, not blocking.` };
+    }
+    const quoteSettingsCol = (c) => `"${c.replace(/"/g, '""')}"`;
+
+    const settings = new Map(db.prepare(`SELECT ${quoteSettingsCol(keyCol)} AS k, ${quoteSettingsCol(valCol)} AS v FROM system_settings`).all().map((r) => [r.k, r.v]));
     if (settings.get('_seeded_by_sms_toolkit')) {
       return { ok: true, action: 'skipped', message: `${stamp}: seed marker present; skipping.` };
     }
@@ -206,9 +220,22 @@ function doSeed(storageDir, seed, stamp, apikeysPath) {
         });
       }
 
-      // Idempotency marker + first-run wizard skip.
-      const setSetting = db.prepare(`INSERT INTO system_settings (key, value) VALUES (?, ?) ON CONFLICT(key) DO UPDATE SET value=excluded.value`);
-      for (const s of seed.settings || []) setSetting.run(s.key, s.value);
+      // Idempotency marker + first-run wizard skip. Upsert by the introspected key
+      // column; fill createdAt/lastUpdatedAt (epoch ms) when those columns exist.
+      const upsertSetting = (key, value) => {
+        const existing = db.prepare(`SELECT id FROM system_settings WHERE ${quoteSettingsCol(keyCol)}=?`).all(key);
+        const stampCols = {};
+        if (settingsCols.includes('createdAt')) stampCols.createdAt = Date.now();
+        if (settingsCols.includes('lastUpdatedAt')) stampCols.lastUpdatedAt = Date.now();
+        if (existing.length) {
+          const { cols, ph, vals } = pick('system_settings', { [valCol]: value, ...stampCols });
+          db.prepare(`UPDATE system_settings SET ${cols.split(', ').map((c, i) => `${c}=?`).join(', ')} WHERE id=?`).run(...vals, existing[0].id);
+        } else {
+          const { cols, ph, vals } = pick('system_settings', { [keyCol]: key, [valCol]: value, ...stampCols });
+          db.prepare(`INSERT INTO system_settings (${cols}) VALUES (${ph})`).run(...vals);
+        }
+      };
+      for (const s of seed.settings || []) upsertSetting(s.key, s.value);
 
       db.exec('COMMIT');
       return { ok: true, action: 'seeded', message: `${stamp}: router '${router.name}' and ${seed.rules.length} rules seeded; ${envWritten} env vars merged into .env; key ${keyStatus}; onboarding skipped; seed marker set.` };
