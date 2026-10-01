@@ -2,7 +2,7 @@
 ; DefaultDirName={userpf}\SMS\AnythingLLM-Defaults  (per-user, no admin)
 
 #define AppName "SMS AnythingLLM Defaults"
-#define AppVersion "0.1.1"
+#define AppVersion "0.2.0"
 #define AppId "{{7C1E9B34-4D5A-4F2B-9C6E-2A8D14F0B7E5}"
 
 [Setup]
