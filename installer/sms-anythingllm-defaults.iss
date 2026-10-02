@@ -2,7 +2,7 @@
 ; DefaultDirName={userpf}\SMS\AnythingLLM-Defaults  (per-user, no admin)
 
 #define AppName "SMS AnythingLLM Defaults"
-#define AppVersion "0.2.3"
+#define AppVersion "0.2.4"
 #define AppId "{{7C1E9B34-4D5A-4F2B-9C6E-2A8D14F0B7E5}"
 
 [Setup]
@@ -11,6 +11,9 @@ AppName={#AppName}
 AppVersion={#AppVersion}
 AppVerName={#AppName} {#AppVersion}
 DefaultDirName={userpf}\SMS\AnythingLLM-Defaults
+; Never reuse a previously remembered dir: a harness/test run with /DIR= would
+; otherwise steer every later rerun (incl. silent) away from the contract path.
+UsePreviousAppDir=no
 DefaultGroupName=SMS Toolkit
 OutputDir=dist
 OutputBaseFilename=Setup-SMS-AnythingLLM-Defaults-v{#AppVersion}
