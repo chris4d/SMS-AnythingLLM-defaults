@@ -55,6 +55,43 @@ function Invoke-Seed {
   # exit code intentionally ignored: seeder records via sms-anythingllm-defaults-status.json
 }
 
+# Readiness check: the db FILE appears early during first boot, while Prisma
+# migrations are still applying (evidence: 2026-10-02 test run - app was killed
+# mid-migration, leaving a half-migrated schema that then failed Prisma's
+# non-interactive migrate on every later boot). Only treat the db as ready when
+# the late migration tables exist; opening may throw while the app holds a
+# write lock, which simply reads as not-ready.
+$ReadyCheckJs = @'
+const { DatabaseSync } = require("node:sqlite");
+try {
+  const db = new DatabaseSync(process.argv[2], { readOnly: true });
+  const names = db.prepare("SELECT name FROM sqlite_master WHERE type='table'").all().map(r => r.name);
+  const has = (t) => names.indexOf(t) !== -1;
+  let migrations = -1;
+  if (has("_prisma_migrations")) {
+    try { migrations = db.prepare("SELECT COUNT(*) AS c FROM _prisma_migrations").get().c; } catch (e) { migrations = -1; }
+  }
+  db.close();
+  console.log(JSON.stringify({ ready: has("model_routers") && has("pro_feature_usage") && has("system_settings") && migrations > 0 }));
+} catch (e) {
+  console.log(JSON.stringify({ ready: false, error: String(e.message || e) }));
+}
+'@
+function Test-DbReady {
+  param([string]$DbPath)
+  if (-not (Test-Path $DbPath)) { return $false }
+  $node = Get-Node
+  if (-not $node) { return $false }
+  $tmp = Join-Path $env:TEMP 'sms-db-ready.js'
+  try {
+    [IO.File]::WriteAllText($tmp, $ReadyCheckJs, (New-Object System.Text.UTF8Encoding($false)))
+    $out = & $node --experimental-sqlite $tmp $DbPath 2>$null
+    if (-not $out) { return $false }
+    $parsed = ($out -join '') | ConvertFrom-Json
+    return [bool]$parsed.ready
+  } catch { return $false }
+}
+
 if (-not (Test-Path $SeedFile)) {
   @{ steps = @(, @{ name = 'seed-model-router'; ok = $false; action = 'missing-seed-file'; message = (Get-Date -Format o) }) } |
     ConvertTo-Json -Depth 4 | Set-Content -LiteralPath $StatusFile
@@ -73,13 +110,16 @@ if (-not (Test-Path $Pending)) { exit 0 }
 # close the app (Phase 1 evidence: provider keys live in storage\.env and the app
 # must not rewrite it after our merge), seed, and relaunch.
 if ($WaitSeconds -gt 0) {
+  $DbPath = Join-Path $StorageDir 'anythingllm.db'
   $deadline = (Get-Date).AddSeconds($WaitSeconds)
+  $ready = $false
   while ((Get-Date) -lt $deadline) {
     Start-Sleep -Seconds 2
-    if (Test-Path (Join-Path $StorageDir 'anythingllm.db')) { break }
+    if (Test-DbReady -DbPath $DbPath) { $ready = $true; break }
   }
-  if (Test-Path (Join-Path $StorageDir 'anythingllm.db')) {
-    # Close the app so it cannot re-dump .env over our injected vars.
+  if ($ready) {
+    # Migrations complete: close the app so it cannot re-dump .env over our
+    # injected vars, then seed, then relaunch for the user.
     taskkill /IM AnythingLLM.exe /F 2>$null | Out-Null
     $killDeadline = (Get-Date).AddSeconds(20)
     while ((Get-Date) -lt $killDeadline) {
@@ -93,5 +133,7 @@ if ($WaitSeconds -gt 0) {
     if (Test-Path $launcher) { Start-Process -FilePath $launcher | Out-Null }
     Remove-Item -LiteralPath $Pending -Force -ErrorAction SilentlyContinue
   }
+  # Not ready in time (or db never appeared): leave pending-seed.json in place so
+  # the next app launch retries. Do NOT kill a still-migrating app.
 }
 exit 0
