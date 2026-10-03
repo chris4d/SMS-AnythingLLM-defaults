@@ -24,6 +24,10 @@ Hard constraints for any agent or contributor working in this repo:
   verified by SHA-256, and supplies `apikeys.json` path at runtime.
 - **Testing location**: run builds/tests only on the dedicated test workstation. Never
   execute seeding or AnythingLLM operations on a dev machine against a live db.
+- **Code signing: deferred** to an unspecified later milestone. Ship unsigned; expect
+  SmartScreen/AV false positives until then. `build.ps1` already supports optional
+  Authenticode signing (`-CertThumbprint` / `-PfxPath` / `-PfxPassword`) — use it the
+  day a cert exists; no other work needed.
 
 Contract (from the suite): publish conventional installer
 `Setup-SMS-AnythingLLM-Defaults-vX.Y.Z.exe` to GitHub Releases, silent flags supported
