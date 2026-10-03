@@ -7,3 +7,4 @@ apikeys.json
 install-status.json
 pending-seed.json
 node_modules/
+sms-anythingllm-defaults-status.json
