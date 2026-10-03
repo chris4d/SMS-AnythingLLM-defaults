@@ -17,7 +17,7 @@ if ($fail) { Write-Host "FAIL: $($fail -join ', ')"; exit 1 }
 $js = @'
 const { DatabaseSync } = require("node:sqlite");
 const db = new DatabaseSync(process.argv[2], { readOnly: true });
-const router = db.prepare("SELECT * FROM model_routers WHERE name=?").get("Baseline Routing");
+const router = db.prepare("SELECT * FROM model_routers WHERE name=?").get("SMS Default Routing");
 const rules = router ? db.prepare("SELECT * FROM model_router_rules WHERE router_id=?").all(String(router.id || router.ID)) : [];
 const sCols = db.prepare(`PRAGMA table_info("system_settings")`).all().map(c => c.name);
 const keyCol = sCols.includes("key") ? "key" : "label";
@@ -25,10 +25,21 @@ const getSetting = (k) => {
   const row = db.prepare(`SELECT value FROM system_settings WHERE "${keyCol}"=?`).get(k);
   return row ? row.value : null;
 };
+const titleRe = /^[a-z0-9_]+$/;
+let badRules = [];
+try {
+  for (const r of rules) {
+    const conds = JSON.parse(r.conditions);
+    if (!Array.isArray(conds)) badRules.push(r.title + ":conditions-not-array");
+    if (!titleRe.test(String(r.title || ""))) badRules.push(String(r.title) + ":title-format");
+    if (r.created_by !== null && r.created_by !== undefined) badRules.push(String(r.title) + ":created-by-set");
+  }
+} catch (e) { badRules.push("conditions-parse:" + (e.message || e)); }
 console.log(JSON.stringify({
-  router: { found: !!router, fallback: router ? String(router.fallback_provider) + "/" + String(router.fallback_model) : null, cooldown: router ? router.cooldown_seconds : null },
+  router: { found: !!router, fallback: router ? String(router.fallback_provider) + "/" + String(router.fallback_model) : null, cooldown: router ? router.cooldown_seconds : null, createdByNull: router ? (router.created_by === null || router.created_by === undefined) : null },
   ruleCount: rules.length,
   rules: rules.map(r => ({ priority: r.priority, enabled: r.enabled, route: String(r.route_provider) + " " + r.route_model, conditions: r.conditions })),
+  badRules,
   marker: getSetting("_seeded_by_sms_toolkit"),
   onboarding: getSetting("onboarding_complete"),
   env: (() => {
@@ -61,9 +72,11 @@ try { $result = $out | ConvertFrom-Json } catch {}
 $errors = @()
 if ($result) {
   if (-not $result.router.found) { $errors += 'router-row-missing' }
-  elseif ($result.router.fallback -ne 'generic-openai/z-ai/glm-5.3-flash') { $errors += 'router-fallback-mismatch' }
+  elseif ($result.router.fallback -ne 'openrouter/z-ai/glm-5.3-flash') { $errors += 'router-fallback-mismatch' }
   elseif ($result.ruleCount -ne 2) { $errors += "rule-count=$($result.ruleCount)" }
-  if (-not $result.marker) { $errors += 'seed-marker-missing' }
+  elseif ($result.router.createdByNull -ne $true) { $errors += 'router-created-by-not-null' }
+  elseif ($result.badRules.Count -gt 0) { $errors += "bad-rules: $($result.badRules -join '; ')" }
+  if ($result.marker -ne 'v2') { $errors += "seed-marker=$($result.marker)" }
   elseif ("$($result.onboarding)" -ne 'true') { $errors += 'onboarding-not-complete' }
   if ($result.env) {
     if (-not $result.env.exists) { $errors += 'env-file-missing' }

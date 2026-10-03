@@ -133,9 +133,12 @@ function doSeed(storageDir, seed, stamp, apikeysPath) {
     const quoteSettingsCol = (c) => `"${c.replace(/"/g, '""')}"`;
 
     const settings = new Map(db.prepare(`SELECT ${quoteSettingsCol(keyCol)} AS k, ${quoteSettingsCol(valCol)} AS v FROM system_settings`).all().map((r) => [r.k, r.v]));
-    if (settings.get('_seeded_by_sms_toolkit')) {
-      return { ok: true, action: 'skipped', message: `${stamp}: seed marker present; skipping.` };
+    const markerVal = settings.get('_seeded_by_sms_toolkit');
+    if (markerVal === 'v2') {
+      return { ok: true, action: 'skipped', message: `${stamp}: seed marker v2 present; skipping.` };
     }
+    // Marker absent (first seed) or stale (repair): proceed. Stale-marker dbs get
+    // our router rows replaced below, so repair is idempotent.
 
     // Insert only columns that actually exist; any we don't recognize (e.g. timestamp
     // columns) are left for the db defaults / the app itself to manage.
@@ -187,18 +190,26 @@ function doSeed(storageDir, seed, stamp, apikeysPath) {
       const envWritten = mergeEnvFile(envPath, envVars);
 
       const router = seed.router;
+      // Repair v1 seeds: the old seeder wrote a poisoned row (string created_by
+      // in an Int? column) under the old router name. Replace it wholesale.
+      const legacy = db.prepare(`SELECT id FROM model_routers WHERE name='Baseline Routing' AND created_by='sms_toolkit'`).all();
+      for (const l of legacy) {
+        db.prepare(`DELETE FROM model_router_rules WHERE router_id=?`).run(l.id);
+        db.prepare(`DELETE FROM model_routers WHERE id=?`).run(l.id);
+      }
       let routerId;
       const existing = db.prepare(`SELECT id FROM model_routers WHERE name=?`).all(router.name);
       if (existing.length) {
         routerId = existing[0].id;
       } else {
+        // created_by stays NULL: schema is Int? (user id); the app's own
+        // UI-created routers write null, and a string here poisons Prisma reads.
         insertRow('model_routers', {
           name: router.name,
-          description: router.description || '',
+          description: router.description || null,
           fallback_provider: router.fallback_provider,
           fallback_model: router.fallback_model,
           cooldown_seconds: router.cooldown_seconds || 300,
-          created_by: 'sms_toolkit',
         });
         routerId = Number(db.prepare(`SELECT last_insert_rowid() AS id`).get().id);
       }
