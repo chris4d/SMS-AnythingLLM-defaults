@@ -1,0 +1,39 @@
+name: Release
+
+on:
+  push:
+    tags:
+      - 'v*'
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: windows-latest
+
+    steps:
+      - name: Checkout
+        uses: actions/checkout@v4
+
+      - name: Install Inno Setup
+        run: choco install innosetup -y --no-progress
+
+      # build.ps1 stamps the version into the .iss, compiles into
+      # installer\dist, and reports the SHA-256 (signing deferred; no cert
+      # args = unsigned build).
+      - name: Build Windows installer
+        run: ./scripts/build.ps1 -Version "$($env:GITHUB_REF_NAME -replace '^v','')"
+        shell: pwsh
+
+      - name: Create Release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: installer/dist/Setup-SMS-AnythingLLM-Defaults-*.exe
+          generate_release_notes: true
+          prerelease: true
+          body: |
+            ## Windows Installer
+            **`Setup-SMS-AnythingLLM-Defaults-*.exe`** installs the SMS baseline model router seeder for AnythingLLM Desktop (per-user, non-admin, silent-safe). Run it after installing AnythingLLM Desktop; the seed applies on install, or on first app launch if the db is not yet present.
+        env:
+          GITHUB_TOKEN: ${{ secrets.GITHUB_TOKEN }}

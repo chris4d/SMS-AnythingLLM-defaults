@@ -2,7 +2,7 @@
 ; DefaultDirName={userpf}\SMS\AnythingLLM-Defaults  (per-user, no admin)
 
 #define AppName "SMS AnythingLLM Defaults"
-#define AppVersion "0.2.5"
+#define AppVersion "0.2.6"
 #define AppId "{{7C1E9B34-4D5A-4F2B-9C6E-2A8D14F0B7E5}"
 
 [Setup]
@@ -35,8 +35,8 @@ Source: "..\shims\run-anythingllm.cmd"; DestDir: "{app}"
 [Icons]
 ; Default icon runs the real AnythingLLM; when a pending seed exists the shim
 ; takes over. The shim dispatches (launches app after seeding or immediately).
-Name: "{group}\AnythingLLM"; Filename: "{app}\run-anythingllm.cmd"; Comment: "AnythingLLM (SMS managed)"
-Name: "{userdesktop}\AnythingLLM"; Filename: "{app}\run-anythingllm.cmd"; Comment: "AnythingLLM (SMS managed)"; Tasks: desktopicon
+Name: "{group}\AnythingLLM"; Filename: "{app}\run-anythingllm.cmd"; IconFilename: "{code:GetAnythingLLMIcon}"; IconIndex: 0; Comment: "AnythingLLM (SMS managed)"
+Name: "{userdesktop}\AnythingLLM"; Filename: "{app}\run-anythingllm.cmd"; IconFilename: "{code:GetAnythingLLMIcon}"; IconIndex: 0; Comment: "AnythingLLM (SMS managed)"; Tasks: desktopicon
 
 [Tasks]
 Name: "desktopicon"; Description: "Create a &desktop shortcut"; GroupDescription: "Additional icons:"
@@ -60,4 +60,13 @@ end;
 function GetDefaultNodePath(Param: String) : String;
 begin
   Result := ExpandConstant('{param:NodePath|}');
+end;
+
+; AnythingLLM desktop installs per-user; the shim launches the same path. If it
+; is not present at install time the shortcut falls back to the default icon.
+function GetAnythingLLMIcon(Param: String) : String;
+begin
+  Result := ExpandConstant('{localappdata}\Programs\AnythingLLM\AnythingLLM.exe');
+  if not FileExists(Result) then
+    Result := '';
 end;
