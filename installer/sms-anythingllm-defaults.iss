@@ -62,8 +62,8 @@ begin
   Result := ExpandConstant('{param:NodePath|}');
 end;
 
-; AnythingLLM desktop installs per-user; the shim launches the same path. If it
-; is not present at install time the shortcut falls back to the default icon.
+// AnythingLLM desktop installs per-user; the shim launches the same path. If it
+// is not present at install time the shortcut falls back to the default icon.
 function GetAnythingLLMIcon(Param: String) : String;
 begin
   Result := ExpandConstant('{localappdata}\Programs\AnythingLLM\AnythingLLM.exe');
