@@ -4,6 +4,15 @@ on:
   push:
     tags:
       - 'v*'
+  # Retry/validate without cutting a release: retagging is forbidden by the
+  # suite's pin policy (never re-pin a moved tag), so dispatch builds with a
+  # version input (or 0.0.0-dev validation build) instead.
+  workflow_dispatch:
+    inputs:
+      version:
+        description: 'Version to stamp (v-prefix optional); empty = 0.0.0-dev validation build, no release published'
+        required: false
+        default: ''
 
 permissions:
   contents: write
@@ -23,10 +32,17 @@ jobs:
       # installer\dist, and reports the SHA-256 (signing deferred; no cert
       # args = unsigned build).
       - name: Build Windows installer
-        run: ./scripts/build.ps1 -Version "$($env:GITHUB_REF_NAME -replace '^v','')"
+        env:
+          DISPATCH_VERSION: ${{ github.event.inputs.version }}
+        run: |
+          $v = if ($env:DISPATCH_VERSION) { $env:DISPATCH_VERSION } else { $env:GITHUB_REF_NAME }
+          if ($v -match '^v') { $v = $v.Substring(1) }
+          if ($v -notmatch '^\d+(\.\d+){0,2}(-[\w.]+)?$') { $v = '0.0.0-dev' }
+          ./scripts/build.ps1 -Version $v
         shell: pwsh
 
       - name: Create Release
+        if: github.event_name == 'push'
         uses: softprops/action-gh-release@v2
         with:
           files: installer/dist/Setup-SMS-AnythingLLM-Defaults-*.exe
