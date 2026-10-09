@@ -24,8 +24,13 @@ PrivilegesRequiredOverridesAllowed=dialog commandline
 DisableWelcomePage=False
 Uninstallable=yes
 UninstallDisplayName={#AppName}
+; Shared suite identity for the exe itself and the ARP entry; the AnythingLLM
+; shortcuts above intentionally keep the AnythingLLM icon (that's what they run).
+SetupIconFile=assets\app-icon.ico
+UninstallDisplayIcon={app}\app-icon.ico
 
 [Files]
+Source: "assets\app-icon.ico"; DestDir: "{app}"; Flags: ignoreversion
 Source: "..\seed\model-router-seed.json"; DestDir: "{app}\seed"; Flags: recursesubdirs
 Source: "..\scripts\seed-model-router.ps1"; DestDir: "{app}\scripts"
 Source: "..\scripts\seed-registry.js"; DestDir: "{app}\scripts"
