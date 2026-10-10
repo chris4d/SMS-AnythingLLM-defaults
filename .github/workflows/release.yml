@@ -47,7 +47,10 @@ jobs:
         with:
           files: installer/dist/Setup-SMS-AnythingLLM-Defaults-*.exe
           generate_release_notes: true
-          prerelease: true
+          # Full releases (not prereleases): the suite's latest-mode resolver
+          # skips draft/prerelease, so flagging these kept the suite baking old
+          # versions (v0.2.5) indefinitely.
+          prerelease: false
           body: |
             ## Windows Installer
             **`Setup-SMS-AnythingLLM-Defaults-*.exe`** installs the SMS baseline model router seeder for AnythingLLM Desktop (per-user, non-admin, silent-safe). Run it after installing AnythingLLM Desktop; the seed applies on install, or on first app launch if the db is not yet present.
