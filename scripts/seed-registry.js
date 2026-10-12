@@ -135,7 +135,9 @@ function doSeed(storageDir, seed, stamp, apikeysPath) {
     const settings = new Map(db.prepare(`SELECT ${quoteSettingsCol(keyCol)} AS k, ${quoteSettingsCol(valCol)} AS v FROM system_settings`).all().map((r) => [r.k, r.v]));
     const markerVal = settings.get('_seeded_by_sms_toolkit');
     if (markerVal === 'v2') {
-      return { ok: true, action: 'skipped', message: `${stamp}: seed marker v2 present; skipping.` };
+      // Deliberately unambiguous: a support engineer reading the status file
+      // must be able to tell "previously seeded, nothing to do" from a skip.
+      return { ok: true, action: 'skipped', message: `${stamp}: already seeded on a previous run (seed marker v2 present); nothing to do.` };
     }
     // Marker absent (first seed) or stale (repair): proceed. Stale-marker dbs get
     // our router rows replaced below, so repair is idempotent.
