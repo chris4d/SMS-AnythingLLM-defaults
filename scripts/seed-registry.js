@@ -2,7 +2,8 @@
 /**
  * Seeds the SMS Toolkit baseline Model Router into the AnythingLLM Desktop db,
  * plus non-secret .env defaults. Never logs or prints key values.
- * Always exits 0 on seed problems, recording issues in install-status.json.
+ * Always exits 0 on seed problems, recording issues in
+ * sms-anythingllm-defaults-status.json.
  *
  * Node v22 with node:sqlite (--experimental-sqlite). No external deps.
  */
@@ -46,7 +47,7 @@ function main() {
   //  --storage-dir <dir>    e.g. %APPDATA%\anythingllm-desktop\storage
   //  --seed-file <json>     literal seed data (no secrets)
   //  --app-dir <dir>        {app} for pending-seed.json
-  //  --status-file <json>   install-status.json path
+  //  --status-file <json>   sms-anythingllm-defaults-status.json path
   //  --apikeys-path <file>  suite-provided; recorded only by reference (never read/logged here)
   const args = process.argv.slice(2);
   const opt = (name) => {
@@ -78,7 +79,7 @@ function main() {
     try {
       result = doSeed(storageDir, seed, stamp, apikeysPath);
     } catch (e) {
-      result = { ok: true, action: 'report-error', message: `${stamp}: seed error (non-blocking): ${e.message || String(e)}` };
+      result = { ok: false, action: 'report-error', message: `${stamp}: seed error (non-blocking): ${e.message || String(e)}` };
     }
     statusReport(statusFile, { name: 'seed-model-router', ok: result.ok, action: result.action, message: result.message });
   } else {

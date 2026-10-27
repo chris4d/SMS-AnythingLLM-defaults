@@ -19,7 +19,7 @@ dev machine — see AGENTS.md.
      2 enabled rules, `onboarding_complete=true`, `_seeded_by_sms_toolkit=true`,
      no core/personal/Mistral routers created beyond the baseline.
    - In the app UI: Model Router page shows "Baseline Routing" with both rules.
-5. Rerun installer → seed must be skipped (marker present), `install-status.json` shows `skipped`.
+5. Rerun installer → seed must be skipped (marker present), `sms-anythingllm-defaults-status.json` shows `skipped`.
 6. Confirm `.env` was rewritten by AnythingLLM's next boot and check whether the
    provider/key entries survived — if not, keys must instead be entered in-app (backstop
    documented below).

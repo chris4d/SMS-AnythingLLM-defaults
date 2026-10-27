@@ -16,7 +16,16 @@ Hard constraints for any agent or contributor working in this repo:
   `docs/key-injection-findings.md`), but never logs or prints key values — status
   messages carry presence/length only. `apikeys.json` is gitignored.
 - **Never fail the install**: seed problems (missing db, table drift in future
-  AnythingLLM versions) are reported via `install-status.json` and the step exits 0.
+  AnythingLLM versions) are reported via `sms-anythingllm-defaults-status.json`
+  and the step exits 0. A reported `report-error` must carry `ok: false` so the
+  suite verifier treats it as a real failure.
+- **Suite status contract**: this utility writes
+  `sms-anythingllm-defaults-status.json` in `{app}` (renamed from
+  `install-status.json` in v0.2.0). The suite's `step-verify.ps1` and
+  `step-package-diagnostics.ps1` read that name (legacy fallback for older
+  builds). The suite consumes this repo as `latest`, so renaming the file is a
+  breaking change: update the suite verifier in the same change. Keep this note
+  in both repos' AGENTS.md.
 - **No external deps**: seeder runs on bundled/suite-provided portable Node v22 with
   `node:sqlite` (`--experimental-sqlite`). No npm packages.
 - **Self-contained utility**: this repo owns everything it needs. The parent suite
